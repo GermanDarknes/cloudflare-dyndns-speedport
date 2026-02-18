@@ -13,7 +13,7 @@ Create a [Cloudflare API token](https://dash.cloudflare.com/profile/api-tokens) 
 ### Run on Docker
 
 ```bash
-docker run -p 80:80 ghcr.io/germandarknes/cloudflare-dyndns-speedport:master
+docker run -p 80:80 ghcr.io/germandarknes/cloudflare-dyndns-speedport:main
 ```
 
 ### Example docker-compose
@@ -21,7 +21,7 @@ docker run -p 80:80 ghcr.io/germandarknes/cloudflare-dyndns-speedport:master
 ```
 services:
   dyndns-server:
-    image: ghcr.io/germandarknes/cloudflare-dyndns-speedport:master
+    image: ghcr.io/germandarknes/cloudflare-dyndns-speedport:main
     environment:
       - CLOUDFLARE_TOKEN=EXAMPLETOKEN
       - CLOUDFLARE_ZONE=example.com
