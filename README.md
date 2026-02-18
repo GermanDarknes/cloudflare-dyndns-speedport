@@ -1,6 +1,6 @@
-# cloudflare-dyndns
+# cloudflare-dyndns-speedport
 
-Middleware for updating [Cloudflare](https://www.cloudflare.com/) DNS records through a Telekom Speedport Router.
+Middleware for updating [Cloudflare](https://www.cloudflare.com/) DNS records through a Telekom Speedport Smart 4 Router.
 
 ## Getting started
 
@@ -10,37 +10,53 @@ Create a [Cloudflare API token](https://dash.cloudflare.com/profile/api-tokens) 
 
 ![Create a Cloudflare custom token](./images/create-cloudflare-token.png "Create a Cloudflare custom token")
 
-### :rocket: Option 1: Self-host cloudflare-dyndns
-
-#### Run on Docker
-
-Start cloudflare-dyndns:
+### Run on Docker
 
 ```bash
-docker run -p 80:80 ghcr.io/l480/cloudflare-dyndns:latest
+docker run -p 80:80 ghcr.io/germandarknes/cloudflare-dyndns-speedport:master
 ```
 
-#### Run on Kubernetes
-
-Use the [Helm Chart](./helm-chart) to deploy cloudflare-dyndns to Kubernetes or directly [pull it from the repositories OCI registry](https://helm.sh/docs/topics/registries/#enabling-oci-support):
-
-```bash
-helm pull oci://ghcr.io/l480/charts/cloudflare-dyndns --version 0.1.0
-```
-
-### :cloud: Option 2: Use my free cloud service
-
-If you don't want to host cloudflare-dyndns yourself, feel free to use my cloud service. Just use this Update URL in your FRITZ!Box:
+### Example docker-compose
 
 ```
-https://dyndns.nicoo.org/?token=<pass>&record=www&zone=example.com&ipv4=<ipaddr>&ipv6=<ip6addr>
+services:
+  dyndns-server:
+    image: ghcr.io/germandarknes/cloudflare-dyndns-speedport:master
+    environment:
+      - CLOUDFLARE_TOKEN=EXAMPLETOKEN
+      - CLOUDFLARE_ZONE=example.com
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4050:80"
 ```
 
-### Configure your FRITZ!Box
+### Example nginx reverse proxy with basic auth
 
-| FRITZ!Box Setting | Value                                                                                                   | Description                                                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Update URL        | `https://dyndns.nicoo.org/?token=<pass>&record=www&zone=example.com&ipv4=<ipaddr>&ipv6=<ip6addr>` | Replace the URL parameter `record` and `zone` with your domain name. If required you can omit either the `ipv4` or `ipv6` URL parameter. |
-| Domain Name       | www.example.com                                                                                         | The FQDN from the URL parameter `record` and `zone`.                                                                                 |
-| Username          | admin                                                                                                   | You can choose whatever value you want.                                                                                              |
-| Password          | ●●●●●●                                                                                                  | The API token you’ve created earlier.                                                                                                |
+```
+server {
+    listen 80;
+    server_name mydyndns.example.com;
+
+    auth_basic "Restricted";
+    auth_basic_user_file /var/www/.htpasswd;
+
+    location / {
+        proxy_pass_header Server;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 1d;
+        proxy_send_timeout 1d;
+        proxy_read_timeout 1d;
+        send_timeout 1d;
+
+        proxy_pass http://127.0.0.1:4050/;
+    }
+}
+```
+
+### Configure your Telekom Speedport Smart 4
+
+![Configure your Telekom Speedport Smart 4](./images/speedport-dyndns-settings.png "Telekom Speedport Smart 4 Settings")
