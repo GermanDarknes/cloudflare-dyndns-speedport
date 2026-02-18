@@ -1,65 +1,52 @@
-import os
-import CloudFlare
-import waitress
+import cloudflare
 import flask
-from flask_httpauth import HTTPBasicAuth
-
+import ipaddress
+import os
+import waitress
 
 app = flask.Flask(__name__)
-auth = HTTPBasicAuth()
-
-@auth.verify_password
-def verify_password(username, password):
-    if username == "nouser" and password == CLOUDFLARE_TOKEN:
-        return username
-    return None
-
 @app.route('/nic/update', methods=['GET'])
-@auth.login_required
 def main():
     hostname = flask.request.args.get('hostname')
-    ipv4 = flask.request.args.get('myip')
     zone = CLOUDFLARE_ZONE
-    cf = CloudFlare.CloudFlare(token=CLOUDFLARE_TOKEN)
+    myip = flask.request.args.get('myip')
+    cf = cloudflare.Cloudflare(api_token=CLOUDFLARE_TOKEN)
 
     if not hostname:
-        return "bad", 400
+        return 'bad', 400
     if not hostname.endswith(zone):
-        return "bad", 400
-    if not ipv4:
-        return "bad", 400
+        return 'bad', 400
+    if not myip:
+        return 'bad', 400
 
-    try:
-        zones = cf.zones.get(params={'name': zone})
+    for ip in myip.split(','):
+        try:
+            zones = cf.zones.list(name=zone)
+            if not zones.result:
+                return 'bad', 404
 
-        if not zones:
-            return "bad", 404
+            zone_id = zones.result[0].id
 
-        record_zone_concat = hostname
+            ip = ipaddress.ip_address(ip)
 
-        a_record = cf.zones.dns_records.get(zones[0]['id'], params={
-                                            'name': record_zone_concat, 'match': 'all', 'type': 'A'})
-        
-        if not a_record:
-            return "bad", 404
+            record_type = 'A'
+            if ip.version == 6:
+                record_type = 'AAAA'
 
+            dns_records = cf.dns.records.list(zone_id=zone_id, name=hostname, match='all', type=record_type)
 
-        if a_record[0]['content'] != ipv4:
-            cf.zones.dns_records.put(zones[0]['id'], a_record[0]['id'], data={
-                                     'name': a_record[0]['name'], 'type': 'A', 'content': ipv4, 'proxied': a_record[0]['proxied'], 'ttl': a_record[0]['ttl']})
+            if not dns_records.result:
+                return 'bad', 404
 
-    except CloudFlare.exceptions.CloudFlareAPIError as e:
-        return "bad", 500
+            dns_record = dns_records.result[0]
+            if dns_record.content != str(ip):
+                cf.dns.records.edit(zone_id=zone_id, dns_record_id=dns_record.id, name=dns_record.name, type=record_type, content=str(ip), ttl=dns_record.ttl, proxied=dns_record.proxied)
+        except (cloudflare.APIConnectionError, cloudflare.APIStatusError, Exception) as e:
+            return 'bad', 500
 
-    return "good", 200
+    return 'good', 200
 
-
-@app.route('/healthz', methods=['GET'])
-def healthz():
-    return flask.jsonify({'status': 'success', 'message': 'OK'}), 200
-
-
-app.secret_key = os.urandom(24)
-CLOUDFLARE_ZONE = os.environ.get('CLOUDFLARE_ZONE')
-CLOUDFLARE_TOKEN = os.environ.get('CLOUDFLARE_TOKEN')
-waitress.serve(app, host='0.0.0.0', port=80)
+if __name__ == '__main__':
+    CLOUDFLARE_ZONE = os.environ.get('CLOUDFLARE_ZONE')
+    CLOUDFLARE_TOKEN = os.environ.get('CLOUDFLARE_TOKEN')
+    waitress.serve(app, host='0.0.0.0', port=80)
