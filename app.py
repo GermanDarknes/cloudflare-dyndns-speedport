@@ -19,19 +19,24 @@ def main():
     if not myip:
         return 'bad', 400
 
-    for ip in myip.split(','):
-        try:
+    try:
             zones = cf.zones.list(name=zone)
             if not zones.result:
                 return 'bad', 404
 
             zone_id = zones.result[0].id
+    except (cloudflare.APIConnectionError, cloudflare.APIStatusError, Exception) as e:
+        return 'bad', 500
 
+    for ip in myip.split(','):
+        try:
             ip = ipaddress.ip_address(ip)
 
             record_type = 'A'
             if ip.version == 6:
                 record_type = 'AAAA'
+                if DISABLE_IPV6:
+                    continue
 
             dns_records = cf.dns.records.list(zone_id=zone_id, name=hostname, match='all', type=record_type)
 
@@ -49,4 +54,5 @@ def main():
 if __name__ == '__main__':
     CLOUDFLARE_ZONE = os.environ.get('CLOUDFLARE_ZONE')
     CLOUDFLARE_TOKEN = os.environ.get('CLOUDFLARE_TOKEN')
+    DISABLE_IPV6 = (os.environ.get('DISABLE_IPV6', 'false').lower() == 'true')
     waitress.serve(app, host='0.0.0.0', port=80)
