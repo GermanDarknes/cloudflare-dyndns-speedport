@@ -32,6 +32,8 @@ def main():
             record_type = 'A'
             if ip.version == 6:
                 record_type = 'AAAA'
+                if DISABLE_IPV6:
+                    continue
 
             dns_records = cf.dns.records.list(zone_id=zone_id, name=hostname, match='all', type=record_type)
 
@@ -49,4 +51,5 @@ def main():
 if __name__ == '__main__':
     CLOUDFLARE_ZONE = os.environ.get('CLOUDFLARE_ZONE')
     CLOUDFLARE_TOKEN = os.environ.get('CLOUDFLARE_TOKEN')
+    DISABLE_IPV6 = (os.environ.get('DISABLE_IPV6', 'False') == 'True')
     waitress.serve(app, host='0.0.0.0', port=80)
